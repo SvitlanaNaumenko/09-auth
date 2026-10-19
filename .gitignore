@@ -1,0 +1,43 @@
+node_modules
+#dependencies
+/node_modules
+.pnp
+.pnp.js
+
+#next.js
+.next/
+out/
+
+#production build
+/build
+/dist
+
+#security / env files
+.env
+.env.local
+.env.production
+.env.development
+
+#debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+#runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+#editor directories and files
+.idea
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp

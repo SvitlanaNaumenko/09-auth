@@ -1,26 +1,41 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { checkSession } from '@/lib/api/serverApi';
 
 const privateRoutes = ['/profile', '/notes'];
 const publicRoutes = ['/sign-in', '/sign-up'];
 
 export async function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get('accessToken')?.value;
+  const refreshToken = cookieStore.get('refreshToken')?.value;
 
-  const accessToken = request.cookies.get('accessToken')?.value;
-  const refreshToken = request.cookies.get('refreshToken')?.value;
-
+  const pathname = request.nextUrl.pathname;
   const isPrivateKey = privateRoutes.some(route => pathname.startsWith(route));
   const isPublicKey = publicRoutes.some(route => pathname.startsWith(route));
 
   let hasValidSession = Boolean(accessToken);
+  let updatedResponse: NextResponse | null = null;
 
   if (!accessToken && refreshToken) {
     try {
-      const sessionData = await checkSession();
-      if (sessionData) {
+      const response = await checkSession();
+      if (response) {
         hasValidSession = true;
+        updatedResponse = NextResponse.next();
+
+        // Переносимо нові куки з відповіді checkSession у поточний запит/відповідь
+        const setCookieHeader = response.headers?.['set-cookie'];
+        if (setCookieHeader) {
+          if (Array.isArray(setCookieHeader)) {
+            setCookieHeader.forEach(cookie => {
+              updatedResponse?.headers.append('set-cookie', cookie);
+            });
+          } else {
+            updatedResponse.headers.set('set-cookie', setCookieHeader);
+          }
+        }
       }
     } catch {
       hasValidSession = false;
@@ -35,7 +50,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
-  return NextResponse.next();
+  return updatedResponse || NextResponse.next();
 }
 
 export const config = {

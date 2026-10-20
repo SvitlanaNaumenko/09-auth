@@ -28,6 +28,13 @@ export default function NotePreviewClient({ id }: NotePreviewClientProps) {
 
   return (
     <Modal isOpen={true} onClose={handleClose}>
+      <button
+        type="button"
+        onClick={handleClose}
+        style={{ marginBottom: '10px', cursor: 'pointer' }}
+      >
+        Close
+      </button>
       {isLoading && <p>Loading...</p>}
       {isError && <p>Error loading note.</p>}
       {note && (

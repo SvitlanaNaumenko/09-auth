@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import { parseSetCookie } from 'cookie';
 import { checkSession } from '@/lib/api/serverApi';
 
 const privateRoutes = ['/profile', '/notes'];
 const publicRoutes = ['/sign-in', '/sign-up'];
+
+const isRouteMatch = (pathname: string, routes: string[]) => {
+  return routes.some(route => pathname === route || pathname.startsWith(`${route}/`));
+};
 
 export async function proxy(request: NextRequest) {
   const cookieStore = await cookies();
@@ -12,39 +17,42 @@ export async function proxy(request: NextRequest) {
   const refreshToken = cookieStore.get('refreshToken')?.value;
 
   const pathname = request.nextUrl.pathname;
-  const isPrivateKey = privateRoutes.some(route => pathname.startsWith(route));
-  const isPublicKey = publicRoutes.some(route => pathname.startsWith(route));
+  const isPrivateKey = isRouteMatch(pathname, privateRoutes);
+  const isPublicKey = isRouteMatch(pathname, publicRoutes);
 
   let hasValidSession = Boolean(accessToken);
   let updatedResponse: NextResponse | null = null;
 
-  if (!accessToken && refreshToken) {
-    try {
-      const response = await checkSession();
-      if (response) {
-        hasValidSession = true;
-        updatedResponse = NextResponse.next();
+  if (isPrivateKey) {
+    if (!accessToken) {
+      if (refreshToken) {
+        try {
+          const data = await checkSession();
+          const setCookie = data.headers?.['set-cookie'];
 
-        // Витягуємо заголовки кук безпосередньо з відповіді
-        const setCookieHeader = response.headers['set-cookie'];
+          if (setCookie) {
+            const cookieArray = Array.isArray(setCookie) ? setCookie : [setCookie];
 
-        if (setCookieHeader) {
-          const cookiesArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
-
-          cookiesArray.forEach(cookieStr => {
-            // Виділяємо пару ім'я=значення з першої частини рядка куки
-            const [cookiePair] = cookieStr.split(';');
-            const [name, value] = cookiePair.split('=');
-
-            if (name && value) {
-              cookieStore.set(name.trim(), value.trim());
-              updatedResponse?.cookies.set(name.trim(), value.trim());
+            for (const cookieStr of cookieArray) {
+              const parsed = parseSetCookie(cookieStr);
+              if (parsed?.value) {
+                cookieStore.set(parsed.name, parsed.value, parsed);
+              }
             }
-          });
+
+            hasValidSession = true;
+            updatedResponse = NextResponse.next({
+              headers: {
+                Cookie: cookieStore.toString(),
+              },
+            });
+          }
+        } catch {
+          hasValidSession = false;
         }
+      } else {
+        hasValidSession = false;
       }
-    } catch {
-      hasValidSession = false;
     }
   }
 

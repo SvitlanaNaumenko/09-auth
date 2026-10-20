@@ -51,5 +51,5 @@ export const checkSession = async () => {
   const response = await api.get('/auth/session', {
     headers,
   });
-  return response.data;
+  return response;
 };

@@ -1,27 +1,21 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useAuthStore } from '@/lib/store/authStore';
+import { getMe } from '@/lib/api/serverApi';
 
-export default function ProfilePage() {
-  const router = useRouter();
-  const user = useAuthStore(state => state.user);
+export const metadata: Metadata = {
+  title: 'Profile Page',
+  description: 'User profile and account information',
+};
 
-  useEffect(() => {
-    if (!user) {
-      router.push('/sign-in');
-    }
-  }, [user, router]);
+export default async function ProfilePage() {
+  let user = null;
 
-  if (!user) {
-    return (
-      <main style={{ padding: '40px', textAlign: 'center' }}>
-        <p>Loading profile...</p>
-      </main>
-    );
+  try {
+    const response = await getMe();
+    user = response.data;
+  } catch {
+    user = null;
   }
 
   return (
@@ -61,7 +55,9 @@ export default function ProfilePage() {
         </div>
 
         <div>
-          <p style={{ fontSize: '18px', marginBottom: '10px' }}>Username: {user?.username}</p>
+          <p style={{ fontSize: '18px', marginBottom: '10px' }}>
+            Username: {user?.username || user?.email || 'N/A'}
+          </p>
           <p style={{ fontSize: '18px' }}>Email: {user?.email}</p>
         </div>
       </div>

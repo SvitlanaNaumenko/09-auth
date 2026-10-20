@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { checkSession } from '@/lib/api/serverApi';
 
 const privateRoutes = ['/profile', '/notes'];
 const publicRoutes = ['/sign-in', '/sign-up'];
@@ -7,20 +8,31 @@ const publicRoutes = ['/sign-in', '/sign-up'];
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Перевіряємо саме accessToken, який присилає сервер
-  const accessToken = request.cookies.get('accessToken');
+  const accessToken = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
 
   const isPrivateKey = privateRoutes.some(route => pathname.startsWith(route));
   const isPublicKey = publicRoutes.some(route => pathname.startsWith(route));
 
-  // Якщо користувач НЕ авторизований і намагається відкрити приватний маршрут
-  if (isPrivateKey && !accessToken) {
+  let hasValidSession = Boolean(accessToken);
+
+  if (!accessToken && refreshToken) {
+    try {
+      const sessionData = await checkSession();
+      if (sessionData) {
+        hasValidSession = true;
+      }
+    } catch {
+      hasValidSession = false;
+    }
+  }
+
+  if (isPrivateKey && !hasValidSession) {
     return NextResponse.redirect(new URL('/sign-in', request.url));
   }
 
-  // Якщо користувач АВТОРИЗОВАНИЙ і намагається відкрити сторінку входу/реєстрації
-  if (isPublicKey && accessToken) {
-    return NextResponse.redirect(new URL('/profile', request.url));
+  if (isPublicKey && hasValidSession) {
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   return NextResponse.next();

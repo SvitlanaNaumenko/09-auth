@@ -25,30 +25,22 @@ export async function proxy(request: NextRequest) {
         hasValidSession = true;
         updatedResponse = NextResponse.next();
 
-        // 1. Витягуємо заголовок set-cookie з відповіді бекенду
+        // Витягуємо заголовки кук безпосередньо з відповіді
         const setCookieHeader = response.headers['set-cookie'];
 
         if (setCookieHeader) {
-          // Створюємо тимчасовий об'єкт NextResponse, щоб скористатися вбудованим парсером Next.js
-          const tempResponse = new NextResponse();
-          const cookieHeaderValue = Array.isArray(setCookieHeader)
-            ? setCookieHeader.join(', ')
-            : setCookieHeader;
-          tempResponse.headers.set('set-cookie', cookieHeaderValue);
+          const cookiesArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
 
-          // Тепер Next.js сам безпечно розпарсив куки, і ми можемо пройтися по них
-          tempResponse.cookies.getAll().forEach(cookie => {
-            cookieStore.set(cookie.name, cookie.value, {
-              path: cookie.path || '/',
-              httpOnly: cookie.httpOnly,
-              secure: cookie.secure,
-              sameSite: cookie.sameSite,
-              expires: cookie.expires,
-            });
+          cookiesArray.forEach(cookieStr => {
+            // Виділяємо пару ім'я=значення з першої частини рядка куки
+            const [cookiePair] = cookieStr.split(';');
+            const [name, value] = cookiePair.split('=');
+
+            if (name && value) {
+              cookieStore.set(name.trim(), value.trim());
+              updatedResponse?.cookies.set(name.trim(), value.trim());
+            }
           });
-
-          // Додатково прокидаємо заголовок у фінальну відповідь користувачу
-          updatedResponse.headers.set('set-cookie', cookieHeaderValue);
         }
       }
     } catch {

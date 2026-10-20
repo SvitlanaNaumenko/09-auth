@@ -25,16 +25,30 @@ export async function proxy(request: NextRequest) {
         hasValidSession = true;
         updatedResponse = NextResponse.next();
 
-        // Переносимо нові куки з відповіді checkSession у поточний запит/відповідь
-        const setCookieHeader = response.headers?.['set-cookie'];
+        // 1. Витягуємо заголовок set-cookie з відповіді бекенду
+        const setCookieHeader = response.headers['set-cookie'];
+
         if (setCookieHeader) {
-          if (Array.isArray(setCookieHeader)) {
-            setCookieHeader.forEach(cookie => {
-              updatedResponse?.headers.append('set-cookie', cookie);
+          // Створюємо тимчасовий об'єкт NextResponse, щоб скористатися вбудованим парсером Next.js
+          const tempResponse = new NextResponse();
+          const cookieHeaderValue = Array.isArray(setCookieHeader)
+            ? setCookieHeader.join(', ')
+            : setCookieHeader;
+          tempResponse.headers.set('set-cookie', cookieHeaderValue);
+
+          // Тепер Next.js сам безпечно розпарсив куки, і ми можемо пройтися по них
+          tempResponse.cookies.getAll().forEach(cookie => {
+            cookieStore.set(cookie.name, cookie.value, {
+              path: cookie.path || '/',
+              httpOnly: cookie.httpOnly,
+              secure: cookie.secure,
+              sameSite: cookie.sameSite,
+              expires: cookie.expires,
             });
-          } else {
-            updatedResponse.headers.set('set-cookie', setCookieHeader);
-          }
+          });
+
+          // Додатково прокидаємо заголовок у фінальну відповідь користувачу
+          updatedResponse.headers.set('set-cookie', cookieHeaderValue);
         }
       }
     } catch {
